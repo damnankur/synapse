@@ -49,7 +49,7 @@ function AnimatedTokenCount({ value }: { value: number }) {
 const NAV_TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
   { id: 'feed', label: 'Discover', icon: <Rss size={16} /> },
   { id: 'dashboard', label: 'My Dashboard', icon: <LayoutDashboard size={16} /> },
-  { id: 'tokens', label: 'Tokens', icon: <Coins size={16} /> },
+  // { id: 'tokens', label: 'Tokens', icon: <Coins size={16} /> },
   { id: 'post', label: 'Post Project', icon: <PlusSquare size={16} /> },
 ];
 
@@ -65,7 +65,15 @@ export function Header() {
         {/* Top bar */}
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setTab('feed')}
+            className={`flex items-center gap-2.5 rounded-xl transition-all cursor-pointer px-2 py-1 -mx-2 -my-1 ${
+              activeTab === 'feed' 
+            }`}
+            aria-label="Go to discover page"
+            title="Go to Discover"
+          >
             <div className="p-2 rounded-xl bg-white/10 backdrop-blur">
               <Atom size={22} className="text-[#17A2B8]" />
             </div>
@@ -75,7 +83,7 @@ export function Header() {
                 Research Collaboration
               </span>
             </div>
-          </div>
+          </button>
 
           {/* Token Balance + User */}
           <div className="flex items-center gap-3">
@@ -83,17 +91,15 @@ export function Header() {
             <button
               type="button"
               onClick={() => setTab('tokens')}
-              className={`flex items-center gap-2 bg-white/10 backdrop-blur px-3 py-2 rounded-xl border border-white/20 transition shadow-sm ${
-                activeTab === 'tokens' ? 'ring-2 ring-amber-300/60 ring-offset-2 ring-offset-[#0c1f4f]' : ''
+              className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shadow-inner border transition-all cursor-pointer${
+                activeTab === 'tokens' ? 'border-white/60 ring-2 ring-[#17A2B8]/80 ring-offset-2 ring-offset-[#0c1f4f]'
+                    : 'border-white/20 hover:border-white/50'
               }`}
               aria-label="View token balance and purchase tokens"
+              title="Manage profile"
             >
-              <div className="p-1 rounded-lg bg-amber-400/20">
-                <Coins size={15} className="text-amber-300" />
-              </div>
-              <div className="flex items-center gap-1">
-                <AnimatedTokenCount value={user.tokens} />
-                <span className="text-white/60 text-xs hidden sm:block">tokens</span>
+              <div className="p-1 rounded-lg bg-blue-400/20">
+                <Coins size={15} className="text-lightBlue-300" />
               </div>
             </button>
 
