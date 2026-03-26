@@ -1,0 +1,14 @@
+<div className="flex items-center gap-2">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shadow-inner border border-white/20"
+                style={{ background: 'linear-gradient(135deg, #17A2B8, #6B4C9A)' }}
+              >
+                {user.initials}
+              </div>
+              <div className="hidden md:block">
+                <p className="text-white text-sm font-semibold leading-none">{user.name}</p>
+                <p className="text-white/50 text-xs mt-0.5">{user.role}</p>
+              </div>
+            </div>
+          </div>
+        </div>
