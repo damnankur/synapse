@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppProvider, useApp } from './store/AppContext';
 import { Header } from './components/Header';
 import { Feed } from './components/Feed';
@@ -6,10 +6,43 @@ import { PostProject } from './components/PostProject';
 import { Dashboard } from './components/Dashboard';
 import { Tokens } from './components/Tokens';
 import { UserProfile } from './components/User';
+import { AuthSession, LandingPage } from './components/LandingPage';
 import { ToastContainer } from './components/ToastContainer';
 
 function AppShell() {
-  const { activeTab, toasts, dismissToast } = useApp();
+  const { activeTab, toasts, dismissToast, setTab } = useApp();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('synapse_access_token');
+    setIsAuthenticated(Boolean(token));
+  }, []);
+
+  const handleAuthenticated = (session: AuthSession, persistSession: boolean) => {
+    if (persistSession) {
+      localStorage.setItem('synapse_access_token', session.accessToken);
+      localStorage.setItem('synapse_refresh_token', session.refreshToken);
+      localStorage.setItem('synapse_permissions', JSON.stringify(session.permissions));
+      localStorage.setItem('synapse_session_user', JSON.stringify(session.user));
+    } else {
+      localStorage.removeItem('synapse_access_token');
+      localStorage.removeItem('synapse_refresh_token');
+      localStorage.removeItem('synapse_permissions');
+      localStorage.removeItem('synapse_session_user');
+    }
+
+    setIsAuthenticated(true);
+    setTab('dashboard');
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#F5F7FA]">
+        <LandingPage onAuthenticated={handleAuthenticated} />
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F5F7FA]">
