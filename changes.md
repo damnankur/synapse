@@ -231,6 +231,18 @@ This file tracks implemented code changes in this workspace.
   - `node --check server/src/server.js`
   - Frontend production build passed with `npm run build`.
 
+### 10. Vercel SPA Route Refresh Fallback for `/auth`
+- Issue:
+  - Direct access or refresh on client routes like `/auth` returned Vercel `404 NOT_FOUND`.
+- Root cause:
+  - No Vercel SPA fallback rewrite config was present, so non-file routes were treated as missing static files.
+- Files changed:
+  - `vercel.json`
+- What was changed:
+  - Added rewrite rule to serve `index.html` for extension-less paths (e.g. `/auth`, `/dashboard`) while preserving real static assets (`/assets/*.js`, CSS, images).
+- Validation:
+  - Config file added and aligned with current Vite build output (`dist/index.html`).
+
 ## Entry Template (for next changes)
 
 ### N. <Short change title>
