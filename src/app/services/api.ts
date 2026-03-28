@@ -1,7 +1,9 @@
-const API_BASE_URL ="http://localhost:5000/api";
+const rawApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').trim();
+const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, '');
 
 export async function apiRequest(path: string, options: RequestInit = {}, token?: string) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
