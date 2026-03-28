@@ -3,6 +3,7 @@ import {
   applyToProject,
   completeProjectByOwner,
   getArchivedProjects,
+  getPublisherOngoingProjectInsights,
   approveRoleCompletion,
   createProject,
   getActiveProjects,
@@ -24,6 +25,7 @@ router.post('/:projectId/apply', authMiddleware, applyToProject);
 router.get('/active', authMiddleware, getActiveProjects);
 router.get('/applications/pending', authMiddleware, getPendingApplications);
 router.get('/archive', authMiddleware, getArchivedProjects);
+router.get('/publisher/ongoing', authMiddleware, getPublisherOngoingProjectInsights);
 router.post('/:projectId/applications/:applicationId/review', authMiddleware, reviewProjectApplication);
 router.post('/:projectId/applications/:applicationId/submit', authMiddleware, submitRoleCompletion);
 router.post('/:projectId/applications/:applicationId/approve', authMiddleware, approveRoleCompletion);

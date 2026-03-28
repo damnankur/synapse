@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { Feed } from './components/Feed';
 import { PostProject } from './components/PostProject';
 import { Dashboard } from './components/Dashboard';
+import { PublisherProjects } from './components/PublisherProjects';
 import { Tokens } from './components/Tokens';
 import { UserProfile } from './components/User';
 import { AuthSession, LandingPage } from './components/LandingPage';
@@ -105,6 +106,7 @@ function AppShell() {
         {activeTab === 'feed' && <Feed />}
         {activeTab === 'post' && <PostProject />}
         {activeTab === 'dashboard' && <Dashboard />}
+        {activeTab === 'publisher' && <PublisherProjects />}
         {activeTab === 'tokens' && <Tokens />}
         {activeTab === 'user' && <UserProfile onLogout={handleLogout} />}
       </main>

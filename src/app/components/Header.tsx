@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Atom, Coins, LayoutDashboard, Rss, PlusSquare, TrendingUp } from 'lucide-react';
+import {
+  Atom,
+  Coins,
+  LayoutDashboard,
+  Rss,
+  PlusSquare,
+  TrendingUp,
+  Building2,
+} from 'lucide-react';
 import { TabType } from '../types';
 import { useApp } from '../store/AppContext';
 
@@ -49,6 +57,7 @@ function AnimatedTokenCount({ value }: { value: number }) {
 const NAV_TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
   { id: 'feed', label: 'Discover', icon: <Rss size={16} /> },
   { id: 'dashboard', label: 'My Dashboard', icon: <LayoutDashboard size={16} /> },
+  { id: 'publisher', label: 'Publisher View', icon: <Building2 size={16} /> },
   // { id: 'tokens', label: 'Tokens', icon: <Coins size={16} /> },
   { id: 'post', label: 'Post Project', icon: <PlusSquare size={16} /> },
 ];

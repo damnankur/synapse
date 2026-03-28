@@ -1,6 +1,12 @@
-export type TabType = 'feed' | 'dashboard' | 'post' | 'tokens' | 'user';
+export type TabType = 'feed' | 'dashboard' | 'post' | 'tokens' | 'user' | 'publisher';
 export type ProjectStatus = 'open' | 'in-progress' | 'completed';
 export type ToastVariant = 'success' | 'error' | 'info' | 'warning';
+export type SubmissionEventType =
+  | 'applied'
+  | 'application_reviewed'
+  | 'submission_submitted'
+  | 'submission_approved'
+  | 'submission_reviewed';
 
 export interface User {
   id: string;
@@ -179,6 +185,62 @@ export interface PlatformProfile {
   activeProjects: PlatformActiveProject[];
   pastProjects: PlatformPastProject[];
   contact: PlatformProfileContact;
+}
+
+export interface PublisherProjectStats {
+  totalApplicants: number;
+  pendingApplicants: number;
+  acceptedContributors: number;
+  submittedContributors: number;
+  approvedContributors: number;
+  rejectedContributors: number;
+  withdrawnContributors: number;
+  timelineEventsCount: number;
+}
+
+export interface PublisherProjectContributor {
+  applicationId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  applicationStatus: 'pending' | 'accepted' | 'locked-in' | 'rejected' | 'withdrawn';
+  submissionStatus: 'not_submitted' | 'submitted' | 'approved' | 'rejected';
+  message: string;
+  reviewerNote: string;
+  appliedAt: string;
+  respondedAt: string;
+  submittedAt: string;
+  reviewedAt: string;
+}
+
+export interface PublisherProjectTimelineEvent {
+  eventId: string;
+  applicationId: string;
+  userId: string;
+  userName: string;
+  role: string;
+  eventType: SubmissionEventType;
+  label: string;
+  status: string;
+  note: string;
+  at: string;
+}
+
+export interface PublisherOngoingProjectInsight {
+  id: string;
+  title: string;
+  domain: string;
+  description: string;
+  status: 'open' | 'in-progress';
+  tags: string[];
+  deadline: string;
+  createdAt: string;
+  updatedAt: string;
+  progress: number;
+  stats: PublisherProjectStats;
+  contributors: PublisherProjectContributor[];
+  timeline: PublisherProjectTimelineEvent[];
 }
  
 export interface Toast {

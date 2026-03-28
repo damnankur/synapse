@@ -34,6 +34,7 @@ const TAB_PATHS: Record<TabType, string> = {
   post: '/post',
   tokens: '/tokens',
   user: '/user',
+  publisher: '/publisher/projects',
 };
 
 const PATH_TO_TAB: Record<string, TabType> = {
@@ -43,6 +44,7 @@ const PATH_TO_TAB: Record<string, TabType> = {
   '/post': 'post',
   '/tokens': 'tokens',
   '/user': 'user',
+  '/publisher/projects': 'publisher',
 };
 
 function getTabFromPath(pathname: string): TabType {

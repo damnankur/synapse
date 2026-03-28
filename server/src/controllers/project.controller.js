@@ -89,6 +89,13 @@ function normalizeDateLabel(dateValue) {
   return date.toISOString().split('T')[0];
 }
 
+function normalizeIsoDateTime(dateValue) {
+  if (!dateValue) return '';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString();
+}
+
 function buildContributorMilestones(status) {
   return [
     { title: 'Project role accepted', completed: true },
@@ -162,6 +169,80 @@ function buildArchiveOutcomeForApplication(application) {
   if (application.completionSubmissionStatus === 'approved') return 'Approved + rewarded';
   if (application.completionSubmissionStatus === 'submitted') return 'Submitted (not approved)';
   return 'Participated';
+}
+
+function buildSubmissionTimeline(application) {
+  const events = [];
+  const userName = application.userId?.name || 'Contributor';
+  const roleLabel = application.assignedRole || 'Contributor';
+
+  if (application.appliedAt) {
+    events.push({
+      eventId: `${application._id}-appliedAt`,
+      applicationId: String(application._id),
+      userId: String(application.userId?._id || application.userId || ''),
+      userName,
+      role: roleLabel,
+      eventType: 'applied',
+      label: `${userName} applied to the project`,
+      status: application.status,
+      note: application.message || '',
+      at: normalizeIsoDateTime(application.appliedAt),
+    });
+  }
+
+  if (application.respondedAt) {
+    events.push({
+      eventId: `${application._id}-respondedAt`,
+      applicationId: String(application._id),
+      userId: String(application.userId?._id || application.userId || ''),
+      userName,
+      role: roleLabel,
+      eventType: 'application_reviewed',
+      label:
+        application.status === 'accepted'
+          ? `${userName} was accepted by publisher`
+          : `${userName} was rejected by publisher`,
+      status: application.status,
+      note: application.reviewerNote || '',
+      at: normalizeIsoDateTime(application.respondedAt),
+    });
+  }
+
+  if (application.submittedAt) {
+    events.push({
+      eventId: `${application._id}-submittedAt`,
+      applicationId: String(application._id),
+      userId: String(application.userId?._id || application.userId || ''),
+      userName,
+      role: roleLabel,
+      eventType: 'submission_submitted',
+      label: `${userName} submitted role completion`,
+      status: application.completionSubmissionStatus,
+      note: application.completionSubmissionNote || '',
+      at: normalizeIsoDateTime(application.submittedAt),
+    });
+  }
+
+  if (application.reviewedAt) {
+    const isApproved = application.completionSubmissionStatus === 'approved';
+    events.push({
+      eventId: `${application._id}-reviewedAt`,
+      applicationId: String(application._id),
+      userId: String(application.userId?._id || application.userId || ''),
+      userName,
+      role: roleLabel,
+      eventType: isApproved ? 'submission_approved' : 'submission_reviewed',
+      label: isApproved
+        ? `${userName}'s submission was approved`
+        : `${userName}'s submission was reviewed`,
+      status: application.completionSubmissionStatus,
+      note: application.reviewerNote || '',
+      at: normalizeIsoDateTime(application.reviewedAt),
+    });
+  }
+
+  return events;
 }
 
 async function autoApproveExpiredSubmissions(projectIds = []) {
@@ -842,6 +923,112 @@ export async function getActiveProjects(req, res) {
   );
 
   return res.json({ projects: activeProjects });
+}
+
+export async function getPublisherOngoingProjectInsights(req, res) {
+  const ownerId = req.auth?.sub;
+  if (!ownerId) {
+    return res.status(401).json({ message: 'Unauthorized.' });
+  }
+
+  const owner = await User.findById(ownerId).lean();
+  if (!owner) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+
+  const ongoingProjects = await Project.find({
+    creatorUserId: owner._id,
+    status: { $in: ['open', 'in-progress'] },
+  })
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  if (!ongoingProjects.length) {
+    return res.json({ projects: [] });
+  }
+
+  const projectIds = ongoingProjects.map((project) => project._id);
+  const allApplications = await ProjectApplication.find({
+    projectId: { $in: projectIds },
+  })
+    .populate('userId')
+    .sort({ appliedAt: 1 })
+    .lean();
+
+  const insightProjects = ongoingProjects.map((project) => {
+    const projectApplications = allApplications.filter(
+      (application) => String(application.projectId) === String(project._id)
+    );
+
+    const acceptedContributors = projectApplications.filter((application) =>
+      ['accepted', 'locked-in'].includes(application.status)
+    );
+
+    const approvedContributors = acceptedContributors.filter(
+      (application) => application.completionSubmissionStatus === 'approved'
+    );
+
+    const submittedContributors = acceptedContributors.filter(
+      (application) => application.completionSubmissionStatus === 'submitted'
+    );
+
+    const timeline = projectApplications
+      .flatMap((application) => buildSubmissionTimeline(application))
+      .filter((event) => Boolean(event.at))
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+    const contributors = projectApplications
+      .filter((application) => application.userId)
+      .map((application) => ({
+        applicationId: String(application._id),
+        userId: String(application.userId?._id || application.userId || ''),
+        name: application.userId?.name || 'Contributor',
+        email: application.userId?.email || '',
+        role: application.assignedRole || 'Contributor',
+        applicationStatus: application.status,
+        submissionStatus: application.completionSubmissionStatus || 'not_submitted',
+        message: application.message || '',
+        reviewerNote: application.reviewerNote || '',
+        appliedAt: normalizeIsoDateTime(application.appliedAt),
+        respondedAt: normalizeIsoDateTime(application.respondedAt),
+        submittedAt: normalizeIsoDateTime(application.submittedAt),
+        reviewedAt: normalizeIsoDateTime(application.reviewedAt),
+      }));
+
+    const progress =
+      acceptedContributors.length > 0
+        ? Math.min(100, Math.round((approvedContributors.length / acceptedContributors.length) * 100))
+        : project.status === 'in-progress'
+        ? 20
+        : 0;
+
+    return {
+      id: project.projectCode || String(project._id),
+      title: project.title,
+      domain: project.domain,
+      description: project.description,
+      status: project.status,
+      tags: project.tags || [],
+      deadline: normalizeDateLabel(project.deadline),
+      createdAt: normalizeIsoDateTime(project.createdAt),
+      updatedAt: normalizeIsoDateTime(project.updatedAt),
+      progress,
+      stats: {
+        totalApplicants: projectApplications.length,
+        pendingApplicants: projectApplications.filter((application) => application.status === 'pending').length,
+        acceptedContributors: acceptedContributors.length,
+        submittedContributors: submittedContributors.length,
+        approvedContributors: approvedContributors.length,
+        rejectedContributors: projectApplications.filter((application) => application.status === 'rejected').length,
+        withdrawnContributors: projectApplications.filter((application) => application.status === 'withdrawn').length,
+        timelineEventsCount: timeline.length,
+      },
+      contributors,
+      timeline,
+    };
+  });
+
+  return res.json({ projects: insightProjects });
 }
 
 export async function submitRoleCompletion(req, res) {
