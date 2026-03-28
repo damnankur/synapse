@@ -2,6 +2,8 @@ import { Project, ProjectApplication, TokenTransaction, User } from '../models/d
 import mongoose from 'mongoose';
 
 const AUTO_APPROVAL_DAYS = 15;
+const CONTRIBUTOR_REWARD_TOKENS = 30;
+const OWNER_PROJECT_COMPLETION_REWARD_TOKENS = 20;
 
 function toPositiveInteger(value, fallback) {
   const parsed = Number.parseInt(String(value), 10);
@@ -39,6 +41,9 @@ function toClientUser(user) {
     id: user.userCode || String(user._id),
     name: user.name,
     email: user.email,
+    phone: user.phone || '',
+    isEmailVisible: Boolean(user.isEmailVisible),
+    isPhoneVisible: Boolean(user.isPhoneVisible),
     role: user.role,
     initials: user.initials,
     tokens: user.tokens,
@@ -62,6 +67,15 @@ function sanitizeStringArray(values) {
   });
 
   return Array.from(unique);
+}
+
+function sanitizeRoleArray(values) {
+  if (!Array.isArray(values)) return [];
+
+  return values
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .slice(0, 100);
 }
 
 function buildProjectCode() {
@@ -135,11 +149,9 @@ async function recomputeProjectStatus(projectId) {
     return project;
   }
 
-  const allApproved = activeContributors.every(
-    (application) => application.completionSubmissionStatus === 'approved'
-  );
-
-  project.status = allApproved ? 'completed' : 'in-progress';
+  // Keep project active until owner explicitly marks it complete.
+  // Contributor approvals should not auto-complete owner projects.
+  project.status = 'in-progress';
   await project.save();
   return project;
 }
@@ -177,7 +189,7 @@ async function autoApproveExpiredSubmissions(projectIds = []) {
     ]);
     if (!project || !contributor) continue;
 
-    const rewardTokens = 30;
+    const rewardTokens = CONTRIBUTOR_REWARD_TOKENS;
     application.completionSubmissionStatus = 'approved';
     application.reviewerNote = `Auto-approved after ${AUTO_APPROVAL_DAYS} days without owner review.`;
     application.reviewedAt = now;
@@ -263,7 +275,7 @@ export async function createProject(req, res) {
   const title = String(req.body.title || '').trim();
   const domain = String(req.body.domain || '').trim();
   const description = String(req.body.description || '').trim();
-  const requiredRoles = sanitizeStringArray(req.body.requiredRoles);
+  const requiredRoles = sanitizeRoleArray(req.body.requiredRoles);
   const tags = sanitizeStringArray(req.body.tags);
   const publishCost = 10;
 
@@ -616,7 +628,7 @@ export async function leaveProject(req, res) {
   });
 }
 
-export async function getActiveProjects(req, res) {
+export async function getPendingApplications(req, res) {
   const userId = req.auth?.sub;
   if (!userId) {
     return res.status(401).json({ message: 'Unauthorized.' });
@@ -627,7 +639,41 @@ export async function getActiveProjects(req, res) {
     return res.status(404).json({ message: 'User not found.' });
   }
 
-  await autoApproveExpiredSubmissions();
+  const pendingApplications = await ProjectApplication.find({
+    userId: currentUser._id,
+    status: 'pending',
+  })
+    .populate('projectId')
+    .sort({ appliedAt: -1 })
+    .lean();
+
+  const applications = pendingApplications
+    .filter((application) => application.projectId && application.projectId.status !== 'completed')
+    .map((application) => ({
+      applicationId: String(application._id),
+      projectId: application.projectId.projectCode || String(application.projectId._id),
+      title: application.projectId.title,
+      domain: application.projectId.domain,
+      appliedAt: normalizeDateLabel(application.appliedAt),
+      status: application.status,
+      publisherUserId: String(application.projectId.creatorUserId || ''),
+      publisherName: application.projectId.creator || '',
+      publisherRole: application.projectId.creatorRole || '',
+    }));
+
+  return res.json({ applications });
+}
+
+export async function getActiveProjects(req, res) {
+  const userId = req.auth?.sub;
+  if (!userId) {
+    return res.status(401).json({ message: 'Unauthorized.' });
+  }
+
+  const currentUser = await User.findById(userId).lean();
+  if (!currentUser) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
 
   const ownerProjects = await Project.find({
     creatorUserId: currentUser._id,
@@ -723,12 +769,16 @@ export async function getActiveProjects(req, res) {
       pendingApprovals,
       applicantsQueue,
       activeContributors,
+      ownerUserId: String(project.creatorUserId || currentUser._id),
+      ownerName: project.creator || currentUser.name,
+      ownerRole: project.creatorRole || currentUser.role,
     };
   });
 
   const contributorApplications = await ProjectApplication.find({
     userId: currentUser._id,
     status: { $in: ['accepted', 'locked-in'] },
+    completionSubmissionStatus: { $ne: 'approved' },
   })
     .populate('projectId')
     .lean();
@@ -781,6 +831,9 @@ export async function getActiveProjects(req, res) {
         pendingApprovals: [],
         applicantsQueue: [],
         activeContributors: [],
+        ownerUserId: String(project.creatorUserId || ''),
+        ownerName: project.creator || owner?.name || 'Project Owner',
+        ownerRole: project.creatorRole || owner?.role || 'Project Owner',
       };
     });
 
@@ -855,7 +908,7 @@ export async function approveRoleCompletion(req, res) {
 
   const { projectId, applicationId } = req.params;
   const reviewerNote = String(req.body.note || '').trim();
-  const rewardTokens = 30;
+  const rewardTokens = CONTRIBUTOR_REWARD_TOKENS;
 
   const project = await resolveProjectByAnyId(projectId, { creatorUserId: ownerId });
 
@@ -921,11 +974,17 @@ export async function completeProjectByOwner(req, res) {
 
   const { projectId } = req.params;
   const reviewerNote = String(req.body.note || '').trim();
-  const rewardTokens = 30;
+  const contributorRewardTokens = CONTRIBUTOR_REWARD_TOKENS;
+  const ownerRewardTokens = OWNER_PROJECT_COMPLETION_REWARD_TOKENS;
 
   const project = await resolveProjectByAnyId(projectId, { creatorUserId: ownerId });
   if (!project) {
     return res.status(404).json({ message: 'Project not found or you are not the project owner.' });
+  }
+
+  const owner = await User.findById(ownerId);
+  if (!owner) {
+    return res.status(404).json({ message: 'Owner user not found.' });
   }
 
   if (project.status === 'completed') {
@@ -934,6 +993,7 @@ export async function completeProjectByOwner(req, res) {
       projectId: project.projectCode || String(project._id),
       autoApprovedCount: 0,
       rewardedCount: 0,
+      ownerRewardTokens: 0,
     });
   }
 
@@ -957,14 +1017,14 @@ export async function completeProjectByOwner(req, res) {
     application.reviewedAt = new Date();
     await application.save();
 
-    contributor.tokens = Math.max(0, contributor.tokens + rewardTokens);
+    contributor.tokens = Math.max(0, contributor.tokens + contributorRewardTokens);
     contributor.completedProjects = Math.max(0, (contributor.completedProjects || 0) + 1);
     await contributor.save();
 
     await TokenTransaction.create({
       userId: contributor._id,
       type: 'project_reward',
-      amount: rewardTokens,
+      amount: contributorRewardTokens,
       balanceAfter: contributor.tokens,
       projectId: project._id,
       applicationId: application._id,
@@ -976,13 +1036,28 @@ export async function completeProjectByOwner(req, res) {
   }
 
   project.status = 'completed';
-  await project.save();
+  owner.tokens = Math.max(0, owner.tokens + ownerRewardTokens);
+  owner.completedProjects = Math.max(0, (owner.completedProjects || 0) + 1);
+
+  await Promise.all([
+    project.save(),
+    owner.save(),
+    TokenTransaction.create({
+      userId: owner._id,
+      type: 'project_reward',
+      amount: ownerRewardTokens,
+      balanceAfter: owner.tokens,
+      projectId: project._id,
+      note: `Owner completion reward for "${project.title}"`,
+    }),
+  ]);
 
   return res.json({
     message: 'Project marked as completed and moved to archive.',
     projectId: project.projectCode || String(project._id),
     autoApprovedCount,
     rewardedCount,
+    ownerRewardTokens,
   });
 }
 
@@ -1032,7 +1107,7 @@ export async function getArchivedProjects(req, res) {
       role: 'Project Owner',
       isOwner: true,
       outcome: `Completed · ${stats.approved}/${stats.contributors} contributors approved`,
-      rewardTokens: 0,
+      rewardTokens: OWNER_PROJECT_COMPLETION_REWARD_TOKENS,
       completedOn: normalizeDateLabel(project.updatedAt),
       tags: project.tags || [],
     };
@@ -1046,10 +1121,18 @@ export async function getArchivedProjects(req, res) {
     .lean();
 
   const contributorArchive = contributorApplications
-    .filter((application) => application.projectId && application.projectId.status === 'completed')
+    .filter(
+      (application) =>
+        application.projectId &&
+        (application.completionSubmissionStatus === 'approved' ||
+          application.projectId.status === 'completed')
+    )
     .map((application) => {
       const project = application.projectId;
-      const reward = application.completionSubmissionStatus === 'approved' ? 30 : 0;
+      const reward =
+        application.completionSubmissionStatus === 'approved'
+          ? CONTRIBUTOR_REWARD_TOKENS
+          : 0;
       return {
         id: `${project.projectCode || String(project._id)}-${String(application._id)}`,
         projectId: project.projectCode || String(project._id),

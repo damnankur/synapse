@@ -57,6 +57,9 @@ const UserSchema = new Schema(
     initials: { type: String, required: true, trim: true, maxlength: 4 },
     permissions: { type: [String], default: [] },
     tokens: { type: Number, default: 0, min: 0 },
+    phone: { type: String, default: '', trim: true, maxlength: 20 },
+    isEmailVisible: { type: Boolean, default: false },
+    isPhoneVisible: { type: Boolean, default: false },
     university: { type: String, default: '', trim: true },
     department: { type: String, default: '', trim: true },
     bio: { type: String, default: '', trim: true, maxlength: 2500 },
@@ -74,6 +77,7 @@ const ProjectSchema = new Schema(
     title: { type: String, required: true, trim: true, maxlength: 220 },
     domain: { type: String, required: true, trim: true, maxlength: 220 },
     description: { type: String, required: true, trim: true, maxlength: 6000 },
+    // Duplicate entries are allowed to represent multiple slots for the same role.
     requiredRoles: { type: [String], default: [] },
     status: { type: String, enum: PROJECT_STATUS, default: 'open' },
     creatorUserId: { type: Schema.Types.ObjectId, ref: 'User' },

@@ -6,6 +6,7 @@ import {
   approveRoleCompletion,
   createProject,
   getActiveProjects,
+  getPendingApplications,
   listProjects,
   leaveProject,
   removeContributor,
@@ -21,6 +22,7 @@ router.get('/', listProjects);
 router.post('/', authMiddleware, createProject);
 router.post('/:projectId/apply', authMiddleware, applyToProject);
 router.get('/active', authMiddleware, getActiveProjects);
+router.get('/applications/pending', authMiddleware, getPendingApplications);
 router.get('/archive', authMiddleware, getArchivedProjects);
 router.post('/:projectId/applications/:applicationId/review', authMiddleware, reviewProjectApplication);
 router.post('/:projectId/applications/:applicationId/submit', authMiddleware, submitRoleCompletion);

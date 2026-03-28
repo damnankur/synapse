@@ -3,6 +3,7 @@ import React, {
   useContext,
   useReducer,
   useCallback,
+  useEffect,
   ReactNode,
 } from 'react';
 import confetti from 'canvas-confetti';
@@ -27,6 +28,32 @@ interface AppState {
   isPublishing: boolean;
 }
 
+const TAB_PATHS: Record<TabType, string> = {
+  feed: '/feed',
+  dashboard: '/dashboard',
+  post: '/post',
+  tokens: '/tokens',
+  user: '/user',
+};
+
+const PATH_TO_TAB: Record<string, TabType> = {
+  '/': 'feed',
+  '/feed': 'feed',
+  '/dashboard': 'dashboard',
+  '/post': 'post',
+  '/tokens': 'tokens',
+  '/user': 'user',
+};
+
+function getTabFromPath(pathname: string): TabType {
+  return PATH_TO_TAB[pathname.toLowerCase()] ?? 'feed';
+}
+
+function getInitialTab(): TabType {
+  if (typeof window === 'undefined') return 'feed';
+  return getTabFromPath(window.location.pathname);
+}
+
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 type Action =
@@ -38,7 +65,6 @@ type Action =
   | { type: 'HYDRATE_USER'; user: User }
   | { type: 'UPDATE_USER_PROFILE'; user: User }
   | { type: 'COMPLETE_MY_ROLE' }
-  | { type: 'UPDATE_TOKENS'; delta: number }
   | { type: 'ADD_TOAST'; toast: Toast }
   | { type: 'REMOVE_TOAST'; id: string }
   | { type: 'SET_PUBLISHING'; value: boolean };
@@ -65,6 +91,16 @@ function normalizeUser(rawUser: Partial<User> | undefined): User {
     ...rawUser,
     id: String(rawUser?.id || INITIAL_USER.id).trim(),
     name,
+    email: String(rawUser?.email || INITIAL_USER.email).trim().toLowerCase(),
+    phone: String(rawUser?.phone || INITIAL_USER.phone).trim(),
+    isEmailVisible:
+      typeof rawUser?.isEmailVisible === 'boolean'
+        ? rawUser.isEmailVisible
+        : INITIAL_USER.isEmailVisible,
+    isPhoneVisible:
+      typeof rawUser?.isPhoneVisible === 'boolean'
+        ? rawUser.isPhoneVisible
+        : INITIAL_USER.isPhoneVisible,
     role: String(rawUser?.role || INITIAL_USER.role).trim(),
     initials: String(rawUser?.initials || deriveInitials(name))
       .trim()
@@ -107,7 +143,6 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         appliedProjectIds: [...state.appliedProjectIds, action.projectId],
-        user: { ...state.user, tokens: state.user.tokens - 10 },
         projects: state.projects.map((p) =>
           p.id === action.projectId ? { ...p, applicants: p.applicants + 1 } : p
         ),
@@ -134,7 +169,6 @@ function reducer(state: AppState, action: Action): AppState {
     case 'COMPLETE_MY_ROLE':
       return {
         ...state,
-        user: { ...state.user, tokens: state.user.tokens + 30 },
         activeProject: {
           ...state.activeProject,
           myTaskCompleted: true,
@@ -143,12 +177,6 @@ function reducer(state: AppState, action: Action): AppState {
             i === 3 ? { ...m, completed: true } : m
           ),
         },
-      };
-
-    case 'UPDATE_TOKENS':
-      return {
-        ...state,
-        user: { ...state.user, tokens: Math.max(0, state.user.tokens + action.delta) },
       };
 
     case 'ADD_TOAST':
@@ -168,7 +196,7 @@ function reducer(state: AppState, action: Action): AppState {
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 interface AppContextType extends AppState {
-  setTab: (tab: TabType) => void;
+  setTab: (tab: TabType, options?: { replaceHistory?: boolean }) => void;
   setProjects: (projects: Project[]) => void;
   hydrateUser: (user: Partial<User>) => void;
   updateUserBio: (bio: string) => Promise<void>;
@@ -201,7 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     projects: INITIAL_PROJECTS,
     appliedProjectIds: [],
     loadingProjectIds: [],
-    activeTab: 'feed',
+    activeTab: getInitialTab(),
     activeProject: INITIAL_ACTIVE_PROJECT,
     toasts: [],
     isPublishing: false,
@@ -224,8 +252,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   // Switches the active app tab (feed, dashboard, post, etc).
-  const setTab = useCallback((tab: TabType) => {
+  const setTab = useCallback((tab: TabType, options?: { replaceHistory?: boolean }) => {
+    if (typeof window !== 'undefined') {
+      const targetPath = TAB_PATHS[tab];
+      if (window.location.pathname !== targetPath) {
+        if (options?.replaceHistory) {
+          window.history.replaceState({}, '', targetPath);
+        } else {
+          window.history.pushState({}, '', targetPath);
+        }
+      }
+    }
     dispatch({ type: 'SET_TAB', tab });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      dispatch({ type: 'SET_TAB', tab: getTabFromPath(window.location.pathname) });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, []);
 
   const setProjects = useCallback((projects: Project[]) => {
@@ -350,7 +401,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [state.user.tokens, addToast]
   );
 
-  // Simulates checkout flow and credits purchased tokens to the user.
+  // Simulates checkout flow, persists token update in DB, then hydrates app state.
   const purchaseTokens = useCallback(
     async (amount: number) => {
       // Simulate backend payment intent creation
@@ -359,7 +410,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Simulate payment capture/confirmation
       await new Promise((res) => setTimeout(res, 900));
 
-      dispatch({ type: 'UPDATE_TOKENS', delta: amount });
+      const result = await updateCurrentUserProfile({
+        tokens: Math.max(0, state.user.tokens + amount),
+      });
+      dispatch({ type: 'UPDATE_USER_PROFILE', user: normalizeUser(result.user) });
       addToast(
         'success',
         'Tokens Added',
@@ -367,7 +421,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         amount
       );
     },
-    [addToast]
+    [state.user.tokens, addToast]
   );
 
   // Marks the user's role as complete, updates progress, rewards tokens, and celebrates.

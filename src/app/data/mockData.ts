@@ -3,6 +3,10 @@ import { User, Project, ActiveProject } from '../types';
 export const INITIAL_USER: User = {
   id: 'user-1',
   name: 'Jordan Patel',
+  email: 'jordan.patel@example.edu',
+  phone: '',
+  isEmailVisible: false,
+  isPhoneVisible: false,
   role: 'UG Student',
   initials: 'JP',
   tokens: 11,

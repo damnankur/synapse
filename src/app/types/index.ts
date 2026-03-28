@@ -5,6 +5,10 @@ export type ToastVariant = 'success' | 'error' | 'info' | 'warning';
 export interface User {
   id: string;
   name: string;
+  email: string;
+  phone: string;
+  isEmailVisible: boolean;
+  isPhoneVisible: boolean;
   role: string;
   initials: string;
   tokens: number;
@@ -102,6 +106,9 @@ export interface ActiveProject {
   pendingApprovals?: PendingApproval[];
   applicantsQueue?: ApplicantQueueItem[];
   activeContributors?: ActiveContributorItem[];
+  ownerUserId?: string;
+  ownerName?: string;
+  ownerRole?: string;
 }
 
 export interface ArchivedProject {
@@ -117,6 +124,63 @@ export interface ArchivedProject {
   tags: string[];
 }
 
+export interface PendingApplication {
+  applicationId: string;
+  projectId: string;
+  title: string;
+  domain: string;
+  appliedAt: string;
+  status: 'pending';
+  publisherUserId: string;
+  publisherName: string;
+  publisherRole: string;
+}
+
+export interface PlatformActiveProject {
+  projectId: string;
+  title: string;
+  domain: string;
+  role: string;
+  status: ProjectStatus;
+  isOwner: boolean;
+}
+
+export interface PlatformPastProject {
+  projectId: string;
+  title: string;
+  domain: string;
+  role: string;
+  isOwner: boolean;
+  completedOn: string;
+  outcome: string;
+}
+
+export interface PlatformProfileContact {
+  email: string;
+  phone: string;
+  isEmailVisible: boolean;
+  isPhoneVisible: boolean;
+  unlocked: boolean;
+}
+
+export interface PlatformProfile {
+  id: string;
+  name: string;
+  role: string;
+  initials: string;
+  university: string;
+  department: string;
+  bio: string;
+  skills: string[];
+  joinDate: string;
+  completedProjects: number;
+  activeProjectsCount: number;
+  pastProjectsCount: number;
+  activeProjects: PlatformActiveProject[];
+  pastProjects: PlatformPastProject[];
+  contact: PlatformProfileContact;
+}
+ 
 export interface Toast {
   id: string;
   variant: ToastVariant;

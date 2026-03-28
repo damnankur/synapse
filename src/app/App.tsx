@@ -15,10 +15,19 @@ import {
   persistSession,
 } from './services/auth';
 
+const AUTH_PATH = '/auth';
+
 function AppShell() {
   const { activeTab, toasts, dismissToast, setTab, hydrateUser } = useApp();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isBootstrappingSession, setIsBootstrappingSession] = useState(true);
+
+  const replacePath = (path: string) => {
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname !== path) {
+      window.history.replaceState({}, '', path);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -29,6 +38,7 @@ function AppShell() {
         if (isMounted) {
           setIsAuthenticated(false);
           setIsBootstrappingSession(false);
+          replacePath(AUTH_PATH);
         }
         return;
       }
@@ -43,6 +53,7 @@ function AppShell() {
         clearStoredSession();
         if (!isMounted) return;
         setIsAuthenticated(false);
+        replacePath(AUTH_PATH);
       } finally {
         if (isMounted) setIsBootstrappingSession(false);
       }
@@ -59,8 +70,19 @@ function AppShell() {
     persistSession(session, persistInLocalStorage);
     hydrateUser(session.user);
     setIsAuthenticated(true);
-    setTab('dashboard');
+    setTab('dashboard', { replaceHistory: true });
   };
+
+  const handleLogout = () => {
+    clearStoredSession();
+    setIsAuthenticated(false);
+    replacePath(AUTH_PATH);
+  };
+
+  useEffect(() => {
+    if (isBootstrappingSession || isAuthenticated) return;
+    replacePath(AUTH_PATH);
+  }, [isAuthenticated, isBootstrappingSession]);
 
   if (isBootstrappingSession) {
     return <div className="min-h-screen bg-[#F5F7FA]" />;
@@ -84,7 +106,7 @@ function AppShell() {
         {activeTab === 'post' && <PostProject />}
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'tokens' && <Tokens />}
-        {activeTab === 'user' && <UserProfile />}
+        {activeTab === 'user' && <UserProfile onLogout={handleLogout} />}
       </main>
 
       <footer className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none">

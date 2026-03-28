@@ -5,6 +5,8 @@ import {
   Building2,
   Calendar,
   Coins,
+  Mail,
+  Phone,
   GraduationCap,
   LogOut,
   Loader2,
@@ -16,12 +18,19 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../store/AppContext';
-import { clearStoredSession } from '../services/auth';
 import { User as AppUser } from '../types';
+
+interface UserProfileProps {
+  onLogout: () => void;
+}
 
 interface ProfileForm {
   id: string;
   name: string;
+  email: string;
+  phone: string;
+  isEmailVisible: boolean;
+  isPhoneVisible: boolean;
   initials: string;
   role: string;
   university: string;
@@ -43,6 +52,10 @@ function buildProfileForm(user: AppUser): ProfileForm {
   return {
     id: user.id,
     name: user.name,
+    email: user.email,
+    phone: user.phone,
+    isEmailVisible: user.isEmailVisible,
+    isPhoneVisible: user.isPhoneVisible,
     initials: user.initials,
     role: user.role,
     university: user.university,
@@ -67,8 +80,11 @@ function deriveInitials(name: string): string {
   return letters || 'U';
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^[0-9+\-()\s]{7,20}$/;
+
 // Profile management screen for viewing and editing user account details.
-export function UserProfile() {
+export function UserProfile({ onLogout }: UserProfileProps) {
   const { user, setTab, updateUserProfile, updateUserBio } = useApp();
   const [form, setForm] = useState<ProfileForm>(() => buildProfileForm(user));
   const [skillInput, setSkillInput] = useState('');
@@ -114,7 +130,7 @@ export function UserProfile() {
   }, [form, user]);
 
   // Updates a specific form field and clears field-level errors/success state.
-  const updateField = (field: keyof ProfileForm, value: string | string[]) => {
+  const updateField = <K extends keyof ProfileForm>(field: K, value: ProfileForm[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
     setSaved(false);
@@ -155,6 +171,11 @@ export function UserProfile() {
 
     if (!form.id.trim()) nextErrors.id = 'User ID is required.';
     if (!form.name.trim()) nextErrors.name = 'Name is required.';
+    if (!form.email.trim()) nextErrors.email = 'Email is required.';
+    else if (!EMAIL_REGEX.test(form.email.trim()))
+      nextErrors.email = 'Please enter a valid email address.';
+    if (form.phone.trim() && !PHONE_REGEX.test(form.phone.trim()))
+      nextErrors.phone = 'Phone can include digits, spaces, +, -, and parentheses.';
     if (!form.role.trim()) nextErrors.role = 'Role is required.';
     if (!form.university.trim()) nextErrors.university = 'University is required.';
     if (!form.department.trim()) nextErrors.department = 'Department is required.';
@@ -197,6 +218,10 @@ export function UserProfile() {
       await updateUserProfile({
         id: form.id.trim(),
         name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        isEmailVisible: form.isEmailVisible,
+        isPhoneVisible: form.isPhoneVisible,
         initials: form.initials.trim().toUpperCase(),
         role: form.role.trim(),
         tokens: Number(form.tokens),
@@ -215,9 +240,7 @@ export function UserProfile() {
 
   // Clears auth session data and returns user to the landing/login experience.
   const handleLogout = () => {
-    clearStoredSession();
-    setTab('dashboard');
-    window.location.reload();
+    onLogout();
   };
 
   return (
@@ -259,6 +282,20 @@ export function UserProfile() {
               <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
                 <GraduationCap size={11} />
                 {form.university || 'University'} · {form.department || 'Department'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                <Mail size={11} />
+                {form.email || 'No email'}
+                <span className="text-[11px] text-gray-400">
+                  ({form.isEmailVisible ? 'Visible' : 'Hidden'})
+                </span>
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                <Phone size={11} />
+                {form.phone || 'No phone'}
+                <span className="text-[11px] text-gray-400">
+                  ({form.isPhoneVisible ? 'Visible' : 'Hidden'})
+                </span>
               </p>
 
               <p className="text-xs text-gray-500 mt-3 leading-relaxed">{form.bio}</p>
@@ -352,6 +389,61 @@ export function UserProfile() {
                 placeholder="Jordan Patel"
               />
               {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+            </div>
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+                <Mail size={14} className="text-[#003D7A]" />
+                Contact Email
+              </label>
+              <input
+                value={form.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                className={INPUT_STYLES}
+                placeholder="name@example.com"
+              />
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-xs text-gray-500">Visible to other users</p>
+                <button
+                  type="button"
+                  onClick={() => updateField('isEmailVisible', !form.isEmailVisible)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                    form.isEmailVisible
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : 'bg-gray-50 border-gray-200 text-gray-500'
+                  }`}
+                >
+                  {form.isEmailVisible ? 'Visible' : 'Hidden'}
+                </button>
+              </div>
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+            </div>
+
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+                <Phone size={14} className="text-[#003D7A]" />
+                Phone Number
+              </label>
+              <input
+                value={form.phone}
+                onChange={(e) => updateField('phone', e.target.value)}
+                className={INPUT_STYLES}
+                placeholder="+91 98765 43210"
+              />
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-xs text-gray-500">Visible to other users</p>
+                <button
+                  type="button"
+                  onClick={() => updateField('isPhoneVisible', !form.isPhoneVisible)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                    form.isPhoneVisible
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : 'bg-gray-50 border-gray-200 text-gray-500'
+                  }`}
+                >
+                  {form.isPhoneVisible ? 'Visible' : 'Hidden'}
+                </button>
+              </div>
+              {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
             </div>
 
             <div>

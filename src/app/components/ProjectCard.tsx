@@ -38,6 +38,12 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, isApplied, isLoading, onApply }: ProjectCardProps) {
   const domainColor = getDomainColor(project.domain);
+  const roleDemandEntries = Array.from(
+    project.requiredRoles.reduce((acc, role) => {
+      acc.set(role, (acc.get(role) || 0) + 1);
+      return acc;
+    }, new Map<string, number>())
+  );
   const daysLeft = Math.max(
     0,
     Math.ceil((new Date(project.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -88,7 +94,7 @@ export function ProjectCard({ project, isApplied, isLoading, onApply }: ProjectC
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {project.requiredRoles.map((role) => (
+            {roleDemandEntries.map(([role, count]) => (
               <span
                 key={role}
                 className="text-xs px-2 py-0.5 rounded-md font-medium"
@@ -98,7 +104,7 @@ export function ProjectCard({ project, isApplied, isLoading, onApply }: ProjectC
                   border: `1px solid ${domainColor}25`,
                 }}
               >
-                {role}
+                {role} {count > 1 ? `x${count}` : ''}
               </span>
             ))}
           </div>

@@ -1,4 +1,4 @@
-import type { ActiveProject, ArchivedProject, Project } from '../types';
+import type { ActiveProject, ArchivedProject, PendingApplication, Project } from '../types';
 import { apiRequest } from './api';
 import { getStoredAccessToken, type AuthUser } from './auth';
 
@@ -41,6 +41,10 @@ export interface ActiveProjectsResponse {
 
 export interface ArchiveProjectsResponse {
   projects: ArchivedProject[];
+}
+
+export interface PendingApplicationsResponse {
+  applications: PendingApplication[];
 }
 
 export interface ApplyToProjectResponse {
@@ -88,6 +92,13 @@ export async function fetchArchivedProjects(): Promise<ArchiveProjectsResponse> 
   if (!token) throw new Error('No access token available.');
 
   return apiRequest('/projects/archive', { method: 'GET' }, token);
+}
+
+export async function fetchPendingApplications(): Promise<PendingApplicationsResponse> {
+  const token = getStoredAccessToken();
+  if (!token) throw new Error('No access token available.');
+
+  return apiRequest('/projects/applications/pending', { method: 'GET' }, token);
 }
 
 export async function applyToProject(projectId: string): Promise<ApplyToProjectResponse> {

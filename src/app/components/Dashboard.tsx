@@ -21,14 +21,24 @@ import {
   Clock,
   Crown,
   Archive,
+  Mail,
+  Phone,
+  X,
 } from 'lucide-react';
 import { useApp } from '../store/AppContext';
-import { ActiveProject, ArchivedProject, TeamMember } from '../types';
+import {
+  ActiveProject,
+  ArchivedProject,
+  PendingApplication,
+  PlatformProfile,
+  TeamMember,
+} from '../types';
 import {
   completeOwnedProject,
   approveRoleCompletion,
   fetchActiveProjects,
   fetchArchivedProjects,
+  fetchPendingApplications,
   leaveProject,
   removeProjectContributor,
   resetRoleSubmission,
@@ -36,6 +46,7 @@ import {
   submitRoleCompletion,
 } from '../services/projects';
 import { fetchCurrentUser } from '../services/auth';
+import { fetchPlatformProfile } from '../services/user';
 
 // ─── Token Economy Panel ─────────────────────────────────────────────────────
 
@@ -53,9 +64,8 @@ function TokenEconomyPanel() {
         {[
           { label: 'Post a Project', delta: '−10', color: 'text-red-300' },
           { label: 'Apply to Project', delta: '−10', color: 'text-red-300' },
-          { label: 'Lock In (commit)', delta: '−10', color: 'text-red-300' },
-          { label: 'Complete Role (refund)', delta: '+10', color: 'text-emerald-300' },
-          { label: 'Project Complete', delta: '+20', color: 'text-emerald-300' },
+          { label: 'Submission Approved (User)', delta: '+30', color: 'text-emerald-300' },
+          { label: 'Project Complete (Owner)', delta: '+20', color: 'text-emerald-300' },
         ].map((item) => (
           <div key={item.label} className="flex items-center justify-between">
             <span className="text-xs text-white/70">{item.label}</span>
@@ -191,6 +201,7 @@ function ActiveProjectWorkspace({
   onRemoveContributor,
   onLeaveProject,
   onCompleteProject,
+  onViewProfile,
 }: {
   activeProject: ActiveProject;
   onSubmitRole: () => Promise<void>;
@@ -204,6 +215,7 @@ function ActiveProjectWorkspace({
   onRemoveContributor: (applicationId: string) => Promise<void>;
   onLeaveProject: () => Promise<void>;
   onCompleteProject: () => Promise<void>;
+  onViewProfile: (userId: string, projectId: string) => void;
 }) {
   const [completing, setCompleting] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -288,6 +300,8 @@ function ActiveProjectWorkspace({
 
   const completedMilestones = activeProject.milestones.filter((m) => m.completed).length;
   const totalMilestones = activeProject.milestones.length;
+  const ownerUserId = activeProject.ownerUserId || '';
+  const canViewOwnerProfile = !isOwner && Boolean(ownerUserId);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -307,6 +321,16 @@ function ActiveProjectWorkspace({
             </div>
             <h2 className="font-bold text-lg text-white leading-snug">{activeProject.title}</h2>
             <p className="text-white/60 text-xs mt-1">{activeProject.domain}</p>
+            {canViewOwnerProfile && (
+              <button
+                type="button"
+                onClick={() => onViewProfile(ownerUserId, activeProject.id)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-white/20 px-2.5 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <User size={11} />
+                View Publisher Profile
+              </button>
+            )}
           </div>
           <div className="flex-shrink-0 text-right">
             <p className="text-2xl font-bold text-white">{activeProject.progress}%</p>
@@ -510,7 +534,13 @@ function ActiveProjectWorkspace({
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <p className="text-sm font-semibold text-gray-800">{applicant.name}</p>
+                              <button
+                                type="button"
+                                onClick={() => onViewProfile(applicant.userId, activeProject.id)}
+                                className="text-sm font-semibold text-gray-800 hover:text-[#003D7A] transition-colors cursor-pointer"
+                              >
+                                {applicant.name}
+                              </button>
                               <p className="text-xs text-gray-500">
                                 {applicant.role || 'Contributor'}
                                 {applicant.appliedAt ? ` · applied ${applicant.appliedAt}` : ''}
@@ -532,7 +562,7 @@ function ActiveProjectWorkspace({
                                 className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-60 cursor-pointer"
                                 style={{ background: 'linear-gradient(135deg, #17A2B8, #003D7A)' }}
                               >
-                                {reviewingId === applicant.applicationId ? '...' : 'Select'}
+                                {reviewingId === applicant.applicationId ? '...' : 'Accept'}
                               </button>
                               <button
                                 type="button"
@@ -565,7 +595,13 @@ function ActiveProjectWorkspace({
                           className="flex items-center justify-between gap-3 rounded-xl bg-white border border-gray-100 px-3 py-2.5"
                         >
                           <div>
-                            <p className="text-sm font-semibold text-gray-800">{pending.name}</p>
+                            <button
+                              type="button"
+                              onClick={() => onViewProfile(pending.userId, activeProject.id)}
+                              className="text-sm font-semibold text-gray-800 hover:text-[#003D7A] transition-colors cursor-pointer"
+                            >
+                              {pending.name}
+                            </button>
                             <p className="text-xs text-gray-500">
                               {pending.role}
                               {pending.submittedAt ? ` · submitted ${pending.submittedAt}` : ''}
@@ -599,7 +635,13 @@ function ActiveProjectWorkspace({
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <p className="text-sm font-semibold text-gray-800">{contributor.name}</p>
+                              <button
+                                type="button"
+                                onClick={() => onViewProfile(contributor.userId, activeProject.id)}
+                                className="text-sm font-semibold text-gray-800 hover:text-[#003D7A] transition-colors cursor-pointer"
+                              >
+                                {contributor.name}
+                              </button>
                               <p className="text-xs text-gray-500">
                                 {contributor.role}
                                 {contributor.submittedAt ? ` · submitted ${contributor.submittedAt}` : ''}
@@ -738,7 +780,7 @@ function LockInBanner() {
       <div className="flex-1">
         <span className="font-semibold text-gray-700">Locked In</span>
         <span className="text-gray-500">
-          {' '}· 10 tokens committed as stake. You'll earn them back upon role completion.
+          {' '}· Applications stay pending until publisher accepts or rejects your proposal.
         </span>
       </div>
       <div className="flex items-center gap-1.5 text-xs font-medium text-[#6B4C9A] bg-[#6B4C9A]/10 px-2.5 py-1 rounded-lg flex-shrink-0">
@@ -751,22 +793,44 @@ function LockInBanner() {
 
 // ─── Applied Projects Sidebar ─────────────────────────────────────────────────
 
-function AppliedProjectsList() {
-  const { projects, appliedProjectIds, setTab } = useApp();
-  const applied = projects.filter((p) => appliedProjectIds.includes(p.id));
+function PendingApplicationsList({
+  applications,
+  loading,
+  onViewPublisher,
+}: {
+  applications: PendingApplication[];
+  loading: boolean;
+  onViewPublisher: (publisherUserId: string, projectId: string) => void;
+}) {
+  const { setTab } = useApp();
 
-  if (applied.length === 0) {
+  if (loading) {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <div className="flex items-center gap-2 mb-3">
           <BookOpen size={14} className="text-[#003D7A]" />
-          <h3 className="text-sm font-semibold text-gray-700">Applied Projects</h3>
+          <h3 className="text-sm font-semibold text-gray-700">Pending Applications</h3>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 size={14} className="animate-spin text-[#003D7A]" />
+          Loading pending queue...
+        </div>
+      </div>
+    );
+  }
+
+  if (applications.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <BookOpen size={14} className="text-[#003D7A]" />
+          <h3 className="text-sm font-semibold text-gray-700">Pending Applications</h3>
         </div>
         <div className="text-center py-6">
           <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
             <BookOpen size={18} className="text-gray-300" />
           </div>
-          <p className="text-sm text-gray-400">No applications yet</p>
+          <p className="text-sm text-gray-400">No pending applications</p>
           <button
             onClick={() => setTab('feed')}
             className="mt-3 flex items-center gap-1 text-xs text-[#17A2B8] font-medium mx-auto hover:underline cursor-pointer"
@@ -782,27 +846,193 @@ function AppliedProjectsList() {
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <div className="flex items-center gap-2 mb-3">
         <BookOpen size={14} className="text-[#003D7A]" />
-        <h3 className="text-sm font-semibold text-gray-700">Applied Projects</h3>
+        <h3 className="text-sm font-semibold text-gray-700">Pending Applications</h3>
         <span className="ml-auto text-xs bg-[#003D7A]/10 text-[#003D7A] px-2 py-0.5 rounded-full font-medium">
-          {applied.length}
+          {applications.length}
         </span>
       </div>
       <div className="space-y-2">
-        {applied.map((project) => (
-          <div
-            key={project.id}
-            className="flex items-center gap-3 p-3 rounded-xl bg-[#F5F7FA] border border-gray-100"
+        {applications.map((application) => (
+          <button
+            key={application.applicationId}
+            type="button"
+            onClick={() => onViewPublisher(application.publisherUserId, application.projectId)}
+            className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#F5F7FA] border border-gray-100 hover:bg-[#eef2f7] transition-colors cursor-pointer text-left"
           >
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-800 truncate">{project.title}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{project.domain}</p>
+              <p className="text-xs font-semibold text-gray-800 truncate">{application.title}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {application.domain}
+                {application.appliedAt ? ` · applied ${application.appliedAt}` : ''}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Publisher: {application.publisherName || 'Project Owner'}
+              </p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               <Clock size={10} className="text-amber-400" />
               <span className="text-xs text-amber-600 font-medium">Pending</span>
             </div>
-          </div>
+          </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function PlatformProfileModal({
+  profile,
+  loading,
+  error,
+  onClose,
+}: {
+  profile: PlatformProfile | null;
+  loading: boolean;
+  error: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0b1020]/55 px-4">
+      <div className="w-full max-w-2xl rounded-2xl bg-white border border-gray-100 shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-800">Researcher Profile</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer"
+            aria-label="Close profile preview"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center text-sm text-gray-500">
+            <Loader2 size={16} className="animate-spin text-[#003D7A] mx-auto mb-2" />
+            Loading profile...
+          </div>
+        ) : error ? (
+          <div className="p-6">
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-xs text-red-600">{error}</p>
+            </div>
+          </div>
+        ) : profile ? (
+          <div className="p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white"
+                style={{ background: 'linear-gradient(135deg, #17A2B8, #6B4C9A)' }}
+              >
+                {profile.initials || 'U'}
+              </div>
+              <div className="flex-1">
+                <p className="text-base font-bold text-gray-900">{profile.name}</p>
+                <p className="text-sm text-[#6B4C9A] font-medium">{profile.role}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {profile.university} · {profile.department}
+                </p>
+              </div>
+              <div className="text-right text-xs text-gray-500">
+                <p>{profile.completedProjects} completed</p>
+                <p>{profile.activeProjectsCount} active</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-600">{profile.bio || 'No bio shared yet.'}</p>
+
+            <div className="flex flex-wrap gap-1.5">
+              {profile.skills.length ? (
+                profile.skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="text-[11px] px-2 py-0.5 rounded-md bg-[#003D7A]/8 text-[#003D7A] border border-[#003D7A]/10"
+                  >
+                    {skill}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-gray-400">No skills listed.</span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-xl border border-gray-100 bg-[#F5F7FA] px-3 py-2.5">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Contact Details
+                </p>
+                <p className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Mail size={11} />
+                  {profile.contact.email || 'Hidden until accepted + shared'}
+                </p>
+                <p className="text-xs text-gray-600 flex items-center gap-1.5 mt-1">
+                  <Phone size={11} />
+                  {profile.contact.phone || 'Hidden until accepted + shared'}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-2">
+                  {!profile.contact.unlocked
+                    ? 'Contact unlocks after proposal acceptance.'
+                    : 'Visible only for details marked visible by this user.'}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 bg-[#F5F7FA] px-3 py-2.5">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Platform Stats
+                </p>
+                <p className="text-xs text-gray-600">Joined: {profile.joinDate || 'N/A'}</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Past projects: {profile.pastProjectsCount}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Current active: {profile.activeProjectsCount}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-xl border border-gray-100 px-3 py-2.5">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Active Projects
+                </p>
+                {profile.activeProjects.length === 0 ? (
+                  <p className="text-xs text-gray-400">No active projects currently.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {profile.activeProjects.slice(0, 4).map((project) => (
+                      <div key={`${project.projectId}-${project.role}`}>
+                        <p className="text-xs font-semibold text-gray-700">{project.title}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {project.role} · {project.status}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-gray-100 px-3 py-2.5">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Past Projects
+                </p>
+                {profile.pastProjects.length === 0 ? (
+                  <p className="text-xs text-gray-400">No past projects yet.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {profile.pastProjects.slice(0, 4).map((project) => (
+                      <div key={`${project.projectId}-${project.role}-${project.completedOn}`}>
+                        <p className="text-xs font-semibold text-gray-700">{project.title}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {project.role} · {project.outcome}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -878,25 +1108,34 @@ export function Dashboard() {
   const { hydrateUser } = useApp();
   const [activeProjects, setActiveProjects] = useState<ActiveProject[]>([]);
   const [archivedProjects, setArchivedProjects] = useState<ArchivedProject[]>([]);
+  const [pendingApplications, setPendingApplications] = useState<PendingApplication[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [loadingActiveProjects, setLoadingActiveProjects] = useState(true);
   const [loadingArchiveProjects, setLoadingArchiveProjects] = useState(true);
+  const [loadingPendingApplications, setLoadingPendingApplications] = useState(true);
   const [activeProjectsError, setActiveProjectsError] = useState('');
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalLoading, setProfileModalLoading] = useState(false);
+  const [profileModalError, setProfileModalError] = useState('');
+  const [profilePreview, setProfilePreview] = useState<PlatformProfile | null>(null);
 
   const loadActiveProjects = useCallback(async () => {
     setLoadingActiveProjects(true);
     setLoadingArchiveProjects(true);
+    setLoadingPendingApplications(true);
     setActiveProjectsError('');
 
     try {
-      const [activeResponse, archiveResponse, userResponse] = await Promise.all([
+      const [activeResponse, archiveResponse, pendingResponse, userResponse] = await Promise.all([
         fetchActiveProjects(),
         fetchArchivedProjects(),
+        fetchPendingApplications(),
         fetchCurrentUser(),
       ]);
 
       setActiveProjects(activeResponse.projects);
       setArchivedProjects(archiveResponse.projects);
+      setPendingApplications(pendingResponse.applications);
       setSelectedProjectId((current) => {
         if (!activeResponse.projects.length) return '';
         if (current && activeResponse.projects.some((project) => project.id === current)) {
@@ -908,6 +1147,7 @@ export function Dashboard() {
     } catch (error) {
       setActiveProjects([]);
       setArchivedProjects([]);
+      setPendingApplications([]);
       setSelectedProjectId('');
       setActiveProjectsError(
         error instanceof Error ? error.message : 'Failed to load dashboard projects.'
@@ -915,6 +1155,7 @@ export function Dashboard() {
     } finally {
       setLoadingActiveProjects(false);
       setLoadingArchiveProjects(false);
+      setLoadingPendingApplications(false);
     }
   }, [hydrateUser]);
 
@@ -933,6 +1174,32 @@ export function Dashboard() {
     () => activeProjects.filter((project) => project.isOwner),
     [activeProjects]
   );
+
+  const handleCloseProfileModal = useCallback(() => {
+    setProfileModalOpen(false);
+    setProfileModalLoading(false);
+    setProfileModalError('');
+    setProfilePreview(null);
+  }, []);
+
+  const handleViewProfile = useCallback(async (userId: string, projectId: string) => {
+    if (!userId) return;
+    setProfileModalOpen(true);
+    setProfileModalLoading(true);
+    setProfileModalError('');
+    setProfilePreview(null);
+
+    try {
+      const response = await fetchPlatformProfile(userId, projectId);
+      setProfilePreview(response.profile);
+    } catch (error) {
+      setProfileModalError(
+        error instanceof Error ? error.message : 'Unable to load this profile right now.'
+      );
+    } finally {
+      setProfileModalLoading(false);
+    }
+  }, []);
 
   const handleSubmitRole = async () => {
     if (!selectedActiveProject?.applicationId) return;
@@ -1036,7 +1303,11 @@ export function Dashboard() {
         {/* Left sidebar */}
         <div className="lg:col-span-1 space-y-5">
           <UserProfileCard />
-          <AppliedProjectsList />
+          <PendingApplicationsList
+            applications={pendingApplications}
+            loading={loadingPendingApplications}
+            onViewPublisher={handleViewProfile}
+          />
           <TokenEconomyPanel />
         </div>
 
@@ -1098,6 +1369,7 @@ export function Dashboard() {
               onRemoveContributor={handleRemoveContributor}
               onLeaveProject={handleLeaveProject}
               onCompleteProject={handleCompleteProject}
+              onViewProfile={handleViewProfile}
             />
           ) : (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
@@ -1114,6 +1386,15 @@ export function Dashboard() {
           />
         </div>
       </div>
+
+      {profileModalOpen && (
+        <PlatformProfileModal
+          profile={profilePreview}
+          loading={profileModalLoading}
+          error={profileModalError}
+          onClose={handleCloseProfileModal}
+        />
+      )}
     </div>
   );
 }
@@ -1136,12 +1417,12 @@ function OwnerControlCenter({
       acc.applicants += project.applicantsQueue?.length || 0;
       acc.pendingReviews += project.pendingApprovals?.length || 0;
       acc.activeContributors += project.activeContributors?.length || 0;
-      acc.awaitingAutoApproval +=
+      acc.awaitingReview +=
         project.activeContributors?.filter((contributor) => contributor.submissionStatus === 'submitted')
           .length || 0;
       return acc;
     },
-    { applicants: 0, pendingReviews: 0, activeContributors: 0, awaitingAutoApproval: 0 }
+    { applicants: 0, pendingReviews: 0, activeContributors: 0, awaitingReview: 0 }
   );
 
   return (
@@ -1157,7 +1438,7 @@ function OwnerControlCenter({
           { label: 'Pending Applicants', value: totals.applicants },
           { label: 'Pending Reviews', value: totals.pendingReviews },
           { label: 'Active Contributors', value: totals.activeContributors },
-          { label: 'Submitted 15d Watch', value: totals.awaitingAutoApproval },
+          { label: 'Submitted for Review', value: totals.awaitingReview },
         ].map((item) => (
           <div key={item.label} className="rounded-xl bg-[#F5F7FA] border border-gray-100 p-3">
             <p className="text-lg font-bold text-[#003D7A]">{item.value}</p>
@@ -1209,7 +1490,7 @@ function OwnerControlCenter({
       </div>
 
       <p className="text-[11px] text-gray-500">
-        Submitted contributions are auto-approved after 15 days if not reviewed by the publisher.
+        Contributors move to completed only after you review and approve their submission.
       </p>
     </section>
   );
