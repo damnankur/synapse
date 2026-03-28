@@ -1,10 +1,20 @@
-export type TabType = 'feed' | 'dashboard' | 'post' | 'tokens' | 'user';
+export type TabType = 'feed' | 'dashboard' | 'post' | 'tokens' | 'user' | 'publisher';
 export type ProjectStatus = 'open' | 'in-progress' | 'completed';
 export type ToastVariant = 'success' | 'error' | 'info' | 'warning';
+export type SubmissionEventType =
+  | 'applied'
+  | 'application_reviewed'
+  | 'submission_submitted'
+  | 'submission_approved'
+  | 'submission_reviewed';
 
 export interface User {
   id: string;
   name: string;
+  email: string;
+  phone: string;
+  isEmailVisible: boolean;
+  isPhoneVisible: boolean;
   role: string;
   initials: string;
   tokens: number;
@@ -56,6 +66,33 @@ export interface Milestone {
   completed: boolean;
 }
 
+export interface PendingApproval {
+  applicationId: string;
+  userId: string;
+  name: string;
+  role: string;
+  submittedAt: string;
+}
+
+export interface ApplicantQueueItem {
+  applicationId: string;
+  userId: string;
+  name: string;
+  role: string;
+  message: string;
+  appliedAt: string;
+}
+
+export interface ActiveContributorItem {
+  applicationId: string;
+  userId: string;
+  name: string;
+  role: string;
+  submissionStatus: 'not_submitted' | 'submitted' | 'approved' | 'rejected';
+  submittedAt: string;
+  status: 'accepted' | 'locked-in' | 'pending' | 'rejected' | 'withdrawn';
+}
+
 export interface ActiveProject {
   id: string;
   title: string;
@@ -69,8 +106,143 @@ export interface ActiveProject {
   deadline: string;
   tags: string[];
   milestones: Milestone[];
+  isOwner?: boolean;
+  applicationId?: string;
+  submissionStatus?: 'not_submitted' | 'submitted' | 'approved' | 'rejected';
+  pendingApprovals?: PendingApproval[];
+  applicantsQueue?: ApplicantQueueItem[];
+  activeContributors?: ActiveContributorItem[];
+  ownerUserId?: string;
+  ownerName?: string;
+  ownerRole?: string;
 }
 
+export interface ArchivedProject {
+  id: string;
+  projectId: string;
+  title: string;
+  domain: string;
+  role: string;
+  isOwner: boolean;
+  outcome: string;
+  rewardTokens: number;
+  completedOn: string;
+  tags: string[];
+}
+
+export interface PendingApplication {
+  applicationId: string;
+  projectId: string;
+  title: string;
+  domain: string;
+  appliedAt: string;
+  status: 'pending';
+  publisherUserId: string;
+  publisherName: string;
+  publisherRole: string;
+}
+
+export interface PlatformActiveProject {
+  projectId: string;
+  title: string;
+  domain: string;
+  role: string;
+  status: ProjectStatus;
+  isOwner: boolean;
+}
+
+export interface PlatformPastProject {
+  projectId: string;
+  title: string;
+  domain: string;
+  role: string;
+  isOwner: boolean;
+  completedOn: string;
+  outcome: string;
+}
+
+export interface PlatformProfileContact {
+  email: string;
+  phone: string;
+  isEmailVisible: boolean;
+  isPhoneVisible: boolean;
+  unlocked: boolean;
+}
+
+export interface PlatformProfile {
+  id: string;
+  name: string;
+  role: string;
+  initials: string;
+  university: string;
+  department: string;
+  bio: string;
+  skills: string[];
+  joinDate: string;
+  completedProjects: number;
+  activeProjectsCount: number;
+  pastProjectsCount: number;
+  activeProjects: PlatformActiveProject[];
+  pastProjects: PlatformPastProject[];
+  contact: PlatformProfileContact;
+}
+
+export interface PublisherProjectStats {
+  totalApplicants: number;
+  pendingApplicants: number;
+  acceptedContributors: number;
+  submittedContributors: number;
+  approvedContributors: number;
+  rejectedContributors: number;
+  withdrawnContributors: number;
+  timelineEventsCount: number;
+}
+
+export interface PublisherProjectContributor {
+  applicationId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  applicationStatus: 'pending' | 'accepted' | 'locked-in' | 'rejected' | 'withdrawn';
+  submissionStatus: 'not_submitted' | 'submitted' | 'approved' | 'rejected';
+  message: string;
+  reviewerNote: string;
+  appliedAt: string;
+  respondedAt: string;
+  submittedAt: string;
+  reviewedAt: string;
+}
+
+export interface PublisherProjectTimelineEvent {
+  eventId: string;
+  applicationId: string;
+  userId: string;
+  userName: string;
+  role: string;
+  eventType: SubmissionEventType;
+  label: string;
+  status: string;
+  note: string;
+  at: string;
+}
+
+export interface PublisherOngoingProjectInsight {
+  id: string;
+  title: string;
+  domain: string;
+  description: string;
+  status: 'open' | 'in-progress';
+  tags: string[];
+  deadline: string;
+  createdAt: string;
+  updatedAt: string;
+  progress: number;
+  stats: PublisherProjectStats;
+  contributors: PublisherProjectContributor[];
+  timeline: PublisherProjectTimelineEvent[];
+}
+ 
 export interface Toast {
   id: string;
   variant: ToastVariant;

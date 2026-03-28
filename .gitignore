@@ -1,2 +1,7 @@
 node_modules
-env
+.env
+ATTRIBUTIONS.md
+AUTHENTICATION_AUTHORIZATION_README.md
+backend.md
+verifyapi.md
+server\.env

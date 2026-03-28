@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, SlidersHorizontal, Sparkles, FlaskConical } from 'lucide-react';
 import { ProjectCard } from './ProjectCard';
 import { useApp } from '../store/AppContext';
+import { fetchProjects } from '../services/projects';
 
 const DOMAINS = ['All', 'Computer Science', 'Life Sciences', 'Engineering', 'Social Sciences', 'Bioethics'];
+const PROJECTS_PER_PAGE_OPTIONS = [6, 9, 12];
 
 function SkeletonCard() {
   return (
@@ -26,25 +28,65 @@ function SkeletonCard() {
 }
 
 export function Feed() {
-  const { projects, appliedProjectIds, loadingProjectIds, applyToProject, user } = useApp();
+  const {
+    projects,
+    setProjects,
+    appliedProjectIds,
+    loadingProjectIds,
+    applyToProject,
+    user,
+  } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDomain, setActiveDomain] = useState('All');
-  const [isLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [projectsPerPage, setProjectsPerPage] = useState(9);
+  const [totalProjects, setTotalProjects] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const filtered = projects.filter((p) => {
-    const matchesSearch =
-      !searchQuery ||
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.domain.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      p.requiredRoles.some((r) => r.toLowerCase().includes(searchQuery.toLowerCase()));
+  useEffect(() => {
+    let cancelled = false;
 
-    const matchesDomain =
-      activeDomain === 'All' ||
-      p.domain.toLowerCase().includes(activeDomain.toLowerCase());
+    const timer = setTimeout(async () => {
+      setIsLoading(true);
+      setError('');
 
-    return matchesSearch && matchesDomain;
-  });
+      try {
+        const response = await fetchProjects({
+          q: searchQuery.trim(),
+          domain: activeDomain,
+          page: currentPage,
+          limit: projectsPerPage,
+        });
+
+        if (cancelled) return;
+
+        setProjects(response.projects);
+        setTotalProjects(response.pagination.total);
+        setTotalPages(response.pagination.totalPages);
+
+        if (response.pagination.page !== currentPage) {
+          setCurrentPage(response.pagination.page);
+        }
+      } catch (apiError) {
+        if (cancelled) return;
+        setProjects([]);
+        setTotalProjects(0);
+        setTotalPages(1);
+        setError(apiError instanceof Error ? apiError.message : 'Failed to load projects.');
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, activeDomain, currentPage, projectsPerPage, setProjects]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -85,7 +127,10 @@ export function Feed() {
             type="text"
             placeholder="Search projects, domains, roles, tags…"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#17A2B8]/40 focus:border-[#17A2B8] transition-all"
           />
         </div>
@@ -95,7 +140,10 @@ export function Feed() {
             {DOMAINS.map((domain) => (
               <button
                 key={domain}
-                onClick={() => setActiveDomain(domain)}
+                onClick={() => {
+                  setActiveDomain(domain);
+                  setCurrentPage(1);
+                }}
                 className={`
                   px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer
                   ${
@@ -117,10 +165,16 @@ export function Feed() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
       {/* Results count */}
       <div className="mb-4 flex items-center justify-between">
         <p className="text-xs text-gray-400">
-          {filtered.length} project{filtered.length !== 1 ? 's' : ''} found
+          {totalProjects} project{totalProjects !== 1 ? 's' : ''} found
           {searchQuery && ` for "${searchQuery}"`}
         </p>
         <p className="text-xs text-gray-400">
@@ -129,14 +183,47 @@ export function Feed() {
         </p>
       </div>
 
+      <div className="mb-5 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-gray-400">Projects per page</p>
+          <div className="flex items-center gap-1.5">
+            {PROJECTS_PER_PAGE_OPTIONS.map((size) => (
+              <button
+                key={size}
+                onClick={() => {
+                  setProjectsPerPage(size);
+                  setCurrentPage(1);
+                }}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
+                  projectsPerPage === size
+                    ? 'text-white border-transparent'
+                    : 'text-gray-500 border-gray-200 bg-white hover:bg-gray-50'
+                }`}
+                style={
+                  projectsPerPage === size
+                    ? { background: 'linear-gradient(135deg, #003D7A, #6B4C9A)' }
+                    : {}
+                }
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">
+          Page <span className="font-semibold text-gray-600">{currentPage}</span> of{' '}
+          <span className="font-semibold text-gray-600">{totalPages}</span>
+        </p>
+      </div>
+
       {/* Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: projectsPerPage }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : projects.length === 0 ? (
         <div className="text-center py-20">
           <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <Search size={24} className="text-gray-300" />
@@ -146,7 +233,7 @@ export function Feed() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((project) => (
+          {projects.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
@@ -155,6 +242,30 @@ export function Feed() {
               onApply={applyToProject}
             />
           ))}
+        </div>
+      )}
+
+      {!isLoading && totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            disabled={currentPage <= 1}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Previous
+          </button>
+          <span className="text-sm text-gray-500 px-2">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={currentPage >= totalPages}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

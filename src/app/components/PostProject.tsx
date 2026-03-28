@@ -1,4 +1,4 @@
-import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, KeyboardEvent, useMemo } from 'react';
 import {
   PlusCircle,
   X,
@@ -49,6 +49,7 @@ interface FormState {
   domain: string;
   description: string;
   roleInput: string;
+  roleCountInput: string;
   requiredRoles: string[];
   tagInput: string;
   tags: string[];
@@ -65,6 +66,7 @@ export function PostProject() {
     domain: '',
     description: '',
     roleInput: '',
+    roleCountInput: '1',
     requiredRoles: [],
     tagInput: '',
     tags: [],
@@ -80,20 +82,39 @@ export function PostProject() {
   const addRole = () => {
     const trimmed = form.roleInput.trim();
     if (!trimmed) return;
-    if (form.requiredRoles.includes(trimmed)) {
-      setForm((f) => ({ ...f, roleInput: '' }));
-      return;
-    }
+    const requestedCount = Number.parseInt(form.roleCountInput, 10);
+    const roleCount = Number.isFinite(requestedCount)
+      ? Math.min(Math.max(requestedCount, 1), 20)
+      : 1;
+
     setForm((f) => ({
       ...f,
-      requiredRoles: [...f.requiredRoles, trimmed],
+      requiredRoles: [
+        ...f.requiredRoles,
+        ...Array.from({ length: roleCount }, () => trimmed),
+      ],
       roleInput: '',
+      roleCountInput: '1',
     }));
     clearError('requiredRoles');
   };
 
   const removeRole = (role: string) =>
-    setForm((f) => ({ ...f, requiredRoles: f.requiredRoles.filter((r) => r !== role) }));
+    setForm((f) => {
+      const index = f.requiredRoles.findIndex((entry) => entry === role);
+      if (index === -1) return f;
+      const nextRoles = [...f.requiredRoles];
+      nextRoles.splice(index, 1);
+      return { ...f, requiredRoles: nextRoles };
+    });
+
+  const roleDemandEntries = useMemo(() => {
+    const demandMap = form.requiredRoles.reduce((acc, role) => {
+      acc.set(role, (acc.get(role) || 0) + 1);
+      return acc;
+    }, new Map<string, number>());
+    return Array.from(demandMap.entries());
+  }, [form.requiredRoles]);
 
   const addTag = () => {
     const trimmed = form.tagInput.trim();
@@ -131,14 +152,18 @@ export function PostProject() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
-    await publishProject({
-      title: form.title,
-      domain: form.domain,
-      description: form.description,
-      requiredRoles: form.requiredRoles,
-      tags: form.tags,
-    });
-    setPublished(true);
+    try {
+      await publishProject({
+        title: form.title,
+        domain: form.domain,
+        description: form.description,
+        requiredRoles: form.requiredRoles,
+        tags: form.tags,
+      });
+      setPublished(true);
+    } catch (_error) {
+      // Error toast is handled centrally in AppContext.publishProject.
+    }
   };
 
   if (published) {
@@ -160,7 +185,19 @@ export function PostProject() {
         </p>
         <div className="flex items-center justify-center gap-3">
           <button
-            onClick={() => { setPublished(false); setForm({ title: '', domain: '', description: '', roleInput: '', requiredRoles: [], tagInput: '', tags: [] }); }}
+            onClick={() => {
+              setPublished(false);
+              setForm({
+                title: '',
+                domain: '',
+                description: '',
+                roleInput: '',
+                roleCountInput: '1',
+                requiredRoles: [],
+                tagInput: '',
+                tags: [],
+              });
+            }}
             className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
           >
             Post Another
@@ -325,7 +362,7 @@ export function PostProject() {
                 value={form.roleInput}
                 onChange={(e) => update('roleInput', e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, addRole)}
-                placeholder="e.g. ML Engineer — press Enter to add"
+                placeholder="e.g. ML Engineer"
                 list="role-suggestions"
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#17A2B8]/30 focus:border-[#17A2B8] transition-all bg-[#F5F7FA]"
               />
@@ -333,6 +370,15 @@ export function PostProject() {
                 {ROLE_SUGGESTIONS.map((r) => <option key={r} value={r} />)}
               </datalist>
             </div>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={form.roleCountInput}
+              onChange={(e) => update('roleCountInput', e.target.value)}
+              className="w-24 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#17A2B8]/30 focus:border-[#17A2B8] transition-all bg-[#F5F7FA]"
+              aria-label="Number of contributors for this role"
+            />
             <button
               onClick={addRole}
               className="px-3 py-2.5 rounded-xl text-white text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity shadow-sm flex-shrink-0"
@@ -341,19 +387,19 @@ export function PostProject() {
               <PlusCircle size={16} />
             </button>
           </div>
-          {form.requiredRoles.length > 0 ? (
+          {roleDemandEntries.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {form.requiredRoles.map((role) => (
+              {roleDemandEntries.map(([role, count]) => (
                 <span
                   key={role}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium text-white"
                   style={{ background: 'linear-gradient(135deg, #003D7A, #6B4C9A)' }}
                 >
-                  {role}
+                  {role} {count > 1 ? `x${count}` : ''}
                   <button
                     onClick={() => removeRole(role)}
                     className="hover:text-red-200 transition-colors cursor-pointer"
-                    aria-label={`Remove ${role}`}
+                    aria-label={`Remove one ${role} slot`}
                   >
                     <X size={11} />
                   </button>
@@ -362,7 +408,12 @@ export function PostProject() {
             </div>
           ) : (
             <p className="text-xs text-gray-400">
-              No roles added yet. Press Enter or click + to add.
+              No roles added yet. Pick a role, set count, then add.
+            </p>
+          )}
+          {form.requiredRoles.length > 0 && (
+            <p className="text-[11px] text-gray-400 mt-2">
+              Total contributor slots requested: {form.requiredRoles.length}
             </p>
           )}
           {errors.requiredRoles && (

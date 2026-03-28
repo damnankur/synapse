@@ -14,32 +14,19 @@ import {
   User2,
   Users,
 } from 'lucide-react';
+import {
+  loginWithPassword,
+  registerWithPassword,
+  type AuthSession as ServiceAuthSession,
+} from '../services/auth';
 
-export interface AuthSession {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
-  permissions: string[];
-}
+export type AuthSession = ServiceAuthSession;
 
 interface LandingPageProps {
   onAuthenticated: (session: AuthSession, persistSession: boolean) => void;
 }
 
 type AuthMode = 'signin' | 'signup';
-
-interface AuthPayload {
-  mode: AuthMode;
-  name: string;
-  email: string;
-  password: string;
-}
 
 const FEATURE_CARDS = [
   {
@@ -59,71 +46,48 @@ const FEATURE_CARDS = [
   },
 ];
 
+/**
+ * Validate basic email format before calling backend auth APIs.
+ */
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-async function mockAuthenticate(payload: AuthPayload): Promise<Omit<AuthSession, 'permissions'>> {
-  await new Promise((res) => setTimeout(res, 900));
-
-  if (!isValidEmail(payload.email)) {
-    throw new Error('Please enter a valid email address.');
-  }
-
-  if (payload.password.length < 8) {
-    throw new Error('Password must be at least 8 characters.');
-  }
-
-  if (payload.email.toLowerCase().includes('blocked')) {
-    throw new Error('Account access is blocked in mock mode.');
-  }
-
-  const derivedName =
-    payload.mode === 'signup'
-      ? payload.name.trim()
-      : payload.email.split('@')[0].replace(/[._-]/g, ' ');
-
-  return {
-    accessToken: `mock_access_${Date.now()}`,
-    refreshToken: `mock_refresh_${Date.now()}`,
-    expiresIn: 60 * 60,
-    user: {
-      id: `user_${Math.floor(Math.random() * 100000)}`,
-      name: derivedName
-        .split(' ')
-        .filter(Boolean)
-        .map((part) => part[0]?.toUpperCase() + part.slice(1))
-        .join(' ') || 'Researcher',
-      email: payload.email.toLowerCase(),
-      role: 'researcher',
-    },
-  };
+/**
+ * Enforce minimum password length for register/sign-in UX consistency.
+ */
+function isStrongPassword(password: string): boolean {
+  return password.length >= 8;
 }
 
-async function mockAuthorize(accessToken: string): Promise<string[]> {
-  await new Promise((res) => setTimeout(res, 500));
-  if (!accessToken.startsWith('mock_access_')) {
-    throw new Error('Invalid access token.');
-  }
-
-  return ['projects.read', 'projects.apply', 'projects.publish', 'profile.update'];
+/**
+ * Trim and normalize display name so we do not send blank padded values.
+ */
+function normalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ');
 }
 
 export function LandingPage({ onAuthenticated }: LandingPageProps) {
   const [mode, setMode] = useState<AuthMode>('signin');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('jordan.patel@synapse-demo.dev');
-  const [password, setPassword] = useState('research123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  /**
+   * Dynamic heading based on current auth mode.
+   */
   const title = useMemo(
     () => (mode === 'signin' ? 'Welcome Back' : 'Create Your Synapse Account'),
     [mode]
   );
 
+  /**
+   * Dynamic subtitle based on current auth mode.
+   */
   const subtitle = useMemo(
     () =>
       mode === 'signin'
@@ -132,16 +96,33 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
     [mode]
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  /**
+   * Execute register/login flow against real backend auth endpoints.
+   * On success, bubble session back to App.tsx for persistence and app entry.
+   */
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError('');
 
-    if (!email.trim() || !password.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedName = normalizeName(name);
+
+    if (!normalizedEmail || !password.trim()) {
       setError('Email and password are required.');
       return;
     }
 
-    if (mode === 'signup' && !name.trim()) {
+    if (!isValidEmail(normalizedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    if (!isStrongPassword(password)) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+
+    if (mode === 'signup' && !normalizedName) {
       setError('Name is required to create an account.');
       return;
     }
@@ -152,19 +133,24 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
     }
 
     setLoading(true);
+
     try {
-      const auth = await mockAuthenticate({ mode, name, email, password });
-      const permissions = await mockAuthorize(auth.accessToken);
-      const session: AuthSession = { ...auth, permissions };
+      const session =
+        mode === 'signup'
+          ? await registerWithPassword({ name: normalizedName, email: normalizedEmail, password })
+          : await loginWithPassword({ email: normalizedEmail, password });
 
       onAuthenticated(session, rememberMe);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication failed.');
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : 'Authentication failed.');
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Toggle between sign-in and sign-up screens and clear stale errors.
+   */
   const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode);
     setError('');
@@ -228,8 +214,8 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
               <div className="flex items-start gap-2">
                 <CheckCircle2 size={15} className="text-[#17A2B8] mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-white/80 leading-relaxed">
-                  Demo auth mode is enabled. Use any valid email + 8+ character password to sign
-                  in. Authorization scopes are mocked for frontend flow testing.
+                  Real authentication is enabled. Sign in or register using email and password,
+                  then your account is validated against MongoDB.
                 </p>
               </div>
             </div>
@@ -252,9 +238,7 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
                 type="button"
                 onClick={() => switchMode('signin')}
                 className={`text-sm font-semibold rounded-lg py-2.5 transition-all cursor-pointer ${
-                  mode === 'signin'
-                    ? 'text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                  mode === 'signin' ? 'text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
                 style={mode === 'signin' ? { background: 'linear-gradient(135deg, #003D7A, #6B4C9A)' } : {}}
               >
@@ -264,9 +248,7 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
                 type="button"
                 onClick={() => switchMode('signup')}
                 className={`text-sm font-semibold rounded-lg py-2.5 transition-all cursor-pointer ${
-                  mode === 'signup'
-                    ? 'text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                  mode === 'signup' ? 'text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
                 style={mode === 'signup' ? { background: 'linear-gradient(135deg, #003D7A, #6B4C9A)' } : {}}
               >
@@ -344,7 +326,7 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
                   />
                   Remember session in local storage
                 </label>
-                <span className="text-gray-400">Dummy API mode</span>
+                <span className="text-gray-400">MongoDB auth</span>
               </div>
 
               {error && (
@@ -379,11 +361,11 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
             <div className="mt-5 pt-4 border-t border-gray-100">
               <div className="flex items-center gap-2 mb-2">
                 <BookOpen size={14} className="text-[#003D7A]" />
-                <p className="text-sm font-semibold text-gray-700">Quick Demo Credentials</p>
+                <p className="text-sm font-semibold text-gray-700">Auth Setup</p>
               </div>
               <p className="text-xs text-gray-500">
-                Email: <span className="font-medium text-gray-700">jordan.patel@synapse-demo.dev</span>{' '}
-                | Password: <span className="font-medium text-gray-700">research123</span>
+                This page now uses real backend auth endpoints: <code>/api/auth/register</code> and{' '}
+                <code>/api/auth/login</code>.
               </p>
             </div>
           </section>
