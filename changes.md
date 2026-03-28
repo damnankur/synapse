@@ -207,6 +207,30 @@ This file tracks implemented code changes in this workspace.
     - `node --check server/src/routes/user.routes.js`
   - Frontend production build passed with `npm run build`.
 
+### 9. Production CORS + API Base URL Alignment (Render + Vercel)
+- Issue:
+  - Vercel frontend calls failed with CORS errors and requests were targeting `http://localhost:5000` in production.
+- Root cause:
+  - Frontend API base URL was hardcoded to localhost.
+  - Backend environment variables were loaded after importing the Express app, so CORS defaulted to localhost.
+  - CORS origin matching was strict and not resilient to trailing slash formatting.
+- Files changed:
+  - `server/src/server.js`
+  - `server/src/app.js`
+  - `src/app/services/api.ts`
+- What was changed:
+  - Backend startup now loads env at module init using `import 'dotenv/config'` before app boot.
+  - Removed duplicate CORS registration in `server/src/server.js`.
+  - Backend CORS now:
+    - supports `CLIENT_ORIGINS` (comma-separated) and `CLIENT_ORIGIN`,
+    - normalizes origins (trailing slash-safe),
+    - validates incoming browser origins dynamically.
+  - Frontend API client now uses `VITE_API_BASE_URL` (fallback localhost for local dev) and safely normalizes URL/path joining.
+- Validation:
+  - `node --check server/src/app.js`
+  - `node --check server/src/server.js`
+  - Frontend production build passed with `npm run build`.
+
 ## Entry Template (for next changes)
 
 ### N. <Short change title>

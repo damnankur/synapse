@@ -6,7 +6,42 @@ import projectRoutes from './routes/project.routes.js';
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173', credentials: true }));
+function normalizeOrigin(origin = '') {
+  return String(origin).trim().replace(/\/+$/, '');
+}
+
+function parseAllowedOrigins(value) {
+  return String(value || '')
+    .split(',')
+    .map((entry) => normalizeOrigin(entry))
+    .filter(Boolean);
+}
+
+const allowedOrigins = parseAllowedOrigins(
+  process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || 'http://localhost:5173'
+);
+const allowedOriginSet = new Set(allowedOrigins);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow non-browser requests (no Origin header), like server-to-server and health probes.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const normalizedIncomingOrigin = normalizeOrigin(origin);
+      if (allowedOriginSet.has(normalizedIncomingOrigin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => {
