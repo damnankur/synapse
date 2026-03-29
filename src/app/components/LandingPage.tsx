@@ -210,7 +210,7 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
               ))}
             </div>
 
-            <div className="mt-8 rounded-xl bg-[#17A2B8]/15 border border-[#17A2B8]/30 p-3.5">
+            {/* <div className="mt-8 rounded-xl bg-[#17A2B8]/15 border border-[#17A2B8]/30 p-3.5">
               <div className="flex items-start gap-2">
                 <CheckCircle2 size={15} className="text-[#17A2B8] mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-white/80 leading-relaxed">
@@ -218,7 +218,7 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
                   then your account is validated against MongoDB.
                 </p>
               </div>
-            </div>
+            </div> */}
           </section>
 
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">
@@ -227,10 +227,10 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
                 <h2 className="text-2xl font-bold text-[#003D7A]">{title}</h2>
                 <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
               </div>
-              <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#6B4C9A] bg-[#6B4C9A]/10 border border-[#6B4C9A]/20 rounded-lg px-2.5 py-1">
+              {/* <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#6B4C9A] bg-[#6B4C9A]/10 border border-[#6B4C9A]/20 rounded-lg px-2.5 py-1">
                 <Lock size={12} />
                 Secure flow
-              </div>
+              </div> */}
             </div>
 
             <div className="mb-5 grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#F5F7FA] border border-gray-100">
@@ -324,9 +324,9 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300 text-[#003D7A] focus:ring-[#17A2B8]/30"
                   />
-                  Remember session in local storage
+                  Remember Me
                 </label>
-                <span className="text-gray-400">MongoDB auth</span>
+                {/* <span className="text-gray-400">MongoDB auth</span> */}
               </div>
 
               {error && (
@@ -358,7 +358,7 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
               </button>
             </form>
 
-            <div className="mt-5 pt-4 border-t border-gray-100">
+            {/* <div className="mt-5 pt-4 border-t border-gray-100">
               <div className="flex items-center gap-2 mb-2">
                 <BookOpen size={14} className="text-[#003D7A]" />
                 <p className="text-sm font-semibold text-gray-700">Auth Setup</p>
@@ -367,7 +367,7 @@ export function LandingPage({ onAuthenticated }: LandingPageProps) {
                 This page now uses real backend auth endpoints: <code>/api/auth/register</code> and{' '}
                 <code>/api/auth/login</code>.
               </p>
-            </div>
+            </div> */}
           </section>
         </div>
       </div>

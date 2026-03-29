@@ -1,4 +1,4 @@
-const rawApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL).trim();
+const rawApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || 'https://localhost:5173').trim();
 const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, '');
 
 export async function apiRequest(path: string, options: RequestInit = {}, token?: string) {

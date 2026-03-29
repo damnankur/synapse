@@ -88,12 +88,12 @@ export function Tokens() {
                   Keep at least 10 tokens on hand so you can apply or publish without friction.
                 </p>
               </div>
-              <div className="hidden sm:flex items-center gap-2 bg-white/10 rounded-xl px-3 py-2 border border-white/15">
+              {/* <div className="hidden sm:flex items-center gap-2 bg-white/10 rounded-xl px-3 py-2 border border-white/15">
                 <ShieldCheck size={15} className="text-emerald-200" />
                 <span className="text-xs text-white/80">
                   Payments are stubbed with a dummy API for this demo.
                 </span>
-              </div>
+              </div> */}
             </div>
           </div>
 
@@ -177,7 +177,7 @@ export function Tokens() {
             </div>
           </div>
 
-          <div className="bg-[#003D7A]/5 border border-[#003D7A]/10 rounded-2xl p-4 text-sm text-[#003D7A]">
+          {/* <div className="bg-[#003D7A]/5 border border-[#003D7A]/10 rounded-2xl p-4 text-sm text-[#003D7A]">
             <div className="flex items-center gap-2 font-semibold mb-2">
               <CheckCircle2 size={16} />
               Safe sandbox flow
@@ -187,7 +187,7 @@ export function Tokens() {
               real cards. Replace <code>mockCreatePaymentIntent</code> and{' '}
               <code>mockConfirmPayment</code> with live APIs when ready.
             </p>
-          </div>
+          </div> */}
         </aside>
       </div>
     </div>
