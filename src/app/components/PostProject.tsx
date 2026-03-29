@@ -16,17 +16,21 @@ import { useApp } from '../store/AppContext';
 
 const DOMAIN_SUGGESTIONS = [
   'Computer Science / AI',
-  'Computer Science / Psychology',
-  'Environmental Science / ML',
-  'Computer Science / Law / Education',
-  'Organisational Psychology / Data Science',
+  'Psychology',
+  'Environmental Science',
+  'Law / Policies',
   'Electrical Engineering / Sustainability',
   'Bioethics / Molecular Biology',
-  'Physics / Biochemistry',
-  'Economics / Political Science',
+  'Physics',
+  'Biochemistry',
+  'Economics',
+  'Political Science',
   'Neuroscience / Computer Science',
   'Mathematics / Finance',
   'Public Health / Data Science',
+  'Clinical Reserach',
+  'Allied Medical Sciences',
+  'Medical Sciences'
 ];
 
 const ROLE_SUGGESTIONS = [
@@ -42,6 +46,8 @@ const ROLE_SUGGESTIONS = [
   'Project Manager',
   'Bioethicist',
   'GIS Specialist',
+  'Medical Sciences',
+  'Basic Sciences'
 ];
 
 interface FormState {
